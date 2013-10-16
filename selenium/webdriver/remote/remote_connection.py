@@ -1,5 +1,6 @@
 # Copyright 2008-2009 WebDriver committers
 # Copyright 2008-2009 Google Inc.
+# Copyright 2013 BrowserStack
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,14 +17,11 @@
 import logging
 import socket
 import string
+import base64
+import httplib
 
 try:
-    from urllib import request as url_request
-except ImportError:
-    import urllib2 as url_request
-
-try:
-    from urllib import parse
+    from urllib2 import parse
 except ImportError:
     import urlparse as parse
 
@@ -32,7 +30,6 @@ from .errorhandler import ErrorCode
 from . import utils
 
 LOGGER = logging.getLogger(__name__)
-
 
 class Request(url_request.Request):
     """
@@ -133,7 +130,7 @@ class RemoteConnection(object):
     Communicates with the server using the WebDriver wire protocol:
     http://code.google.com/p/selenium/wiki/JsonWireProtocol
     """
-
+    # akshay:ryan@127.0.0.1:4444
     def __init__(self, remote_server_addr):
         # Attempt to resolve the hostname and get an IP address.
         parsed_url = parse.urlparse(remote_server_addr)
@@ -156,9 +153,7 @@ class RemoteConnection(object):
 
         self._url = remote_server_addr
         self._commands = {
-            Command.STATUS: ('GET', '/status'),
             Command.NEW_SESSION: ('POST', '/session'),
-            Command.GET_ALL_SESSIONS: ('GET', '/sessions'),
             Command.QUIT: ('DELETE', '/session/$sessionId'),
             Command.GET_CURRENT_WINDOW_HANDLE:
                 ('GET', '/session/$sessionId/window_handle'),
@@ -368,48 +363,112 @@ class RemoteConnection(object):
         """
         LOGGER.debug('%s %s %s' % (method, url, data))
 
+        # auth = base64.encodestring('%s:%s' % (username, password)).replace('\n','')
+        #standard_b64encode
+        # webservice = httplib.HTTP(host)
+        # # write your headers
+        # webservice.putrequest(method, url)
+        # webservice.putheader("Host", host)
+        # webservice.putheader("User-Agent", "Python http auth")
+        # webservice.putheader("Content-type", "text/html")
+        # webservice.putheader("Content-length", "%d" % len(data))
+        # webservice.putheader("Connection", "keep-alive")
+        # # Authorization header 
+        # webservice.putheader("Authorization", "Basic %s" % auth)
+        # webservice.endheaders()
+        # webservice.send(message)
+        # # get the response
+        # statuscode, statusmessage, header = webservice.getreply()
+        # print "Response: ", statuscode, statusmessage
+        # print "Headers: ", header
+        # res = webservice.getfile().read()
+        # print 'Content: ', res
+
         parsed_url = parse.urlparse(url)
-        password_manager = None
+        # Start creating headers
+        webservice = httplib.HTTP(parsed_url.hostname)
+        # write your headers
+        webservice.putrequest(method, url)
+        webservice.putheader("Host", parsed_url.hostname)
+        webservice.putheader("User-Agent", "Python http auth")
+        webservice.putheader("Content-type", "text/html")
+        webservice.putheader("Content-length", "%d" % len(data))
+        webservice.putheader("Connection", "keep-alive")
+        # for basic auth
         if parsed_url.username:
-            netloc = parsed_url.hostname
-            if parsed_url.port:
-                netloc += ":%s" % parsed_url.port
-            cleaned_url = parse.urlunparse((parsed_url.scheme,
-                                               netloc,
-                                               parsed_url.path,
-                                               parsed_url.params,
-                                               parsed_url.query,
-                                               parsed_url.fragment))
-            password_manager = url_request.HTTPPasswordMgrWithDefaultRealm()
-            password_manager.add_password(None,
-                                          "%s://%s" % (parsed_url.scheme, netloc),
-                                          parsed_url.username,
-                                          parsed_url.password)
-            request = Request(cleaned_url, data=data.encode('utf-8'), method=method)
-        else:
-            request = Request(url, data=data.encode('utf-8'), method=method)
+            auth = base64.encodestring('%s:%s' % (parsed_url.username, parsed_url.password)).replace('\n','')
+            #standard_b64encode
+            # Authorization header
+            webservice.putheader("Authorization", "Basic %s" % auth)   
+        webservice.endheaders()
+        webservice.send(data)
+        statuscode, statusmessage, header = webservice.getreply()
+        print "Response: ", statuscode, statusmessage
+        print "Headers: ", header
+        response = webservice.getfile().read()
+        print 'Content: ', response
+        # password_manager = None
+        # if parsed_url.username:
+        #     netloc = parsed_url.hostname
+        #     if parsed_url.port:
+        #         netloc += ":%s" % parsed_url.port
+        #     cleaned_url = parse.urlunparse((parsed_url.scheme,
+        #                                        netloc,
+        #                                        parsed_url.path,
+        #                                        parsed_url.params,
+        #                                        parsed_url.query,
+        #                                        parsed_url.fragment))
+        #     password_manager = url_request.HTTPPasswordMgrWithDefaultRealm()
+        #     password_manager.add_password(None,
+        #                                   "%s://%s" % (parsed_url.scheme, netloc),
+        #                                   parsed_url.username,
+        #                                   parsed_url.password)
+        #     request = Request(cleaned_url, data=data.encode('utf-8'), method=method)
+        # else:
+        #     request = Request(url, data=data.encode('utf-8'), method=method)
 
-        request.add_header('Accept', 'application/json')
-        request.add_header('Content-Type', 'application/json;charset=UTF-8')
+        # request.add_header('Accept', 'application/json')
+        # request.add_header('Content-Type', 'application/json;charset=UTF-8')
+        # request.add_header('Connection','Keep-Alive')
+        # request.add_header('keep-alive','Yes')
+        # request.add_header('Keep Alive','Yes')
 
-        if password_manager:
-            opener = url_request.build_opener(url_request.HTTPRedirectHandler(),
-                                          HttpErrorHandler(),
-                                          url_request.HTTPBasicAuthHandler(password_manager))
-        else:
-            opener = url_request.build_opener(url_request.HTTPRedirectHandler(),
-                                          HttpErrorHandler())
-        response = opener.open(request)
+        # if password_manager:
+        #     opener = url_request.build_opener(url_request.HTTPRedirectHandler(),
+        #                                   HttpErrorHandler(),
+        #                                   url_request.HTTPBasicAuthHandler(password_manager))
+        #     # opener = url_request.build_opener(HTTPHandler(),
+        #     #                               HttpErrorHandler(),
+        #     #                               url_request.HTTPBasicAuthHandler(password_manager))
+        # else:
+        #     opener = url_request.build_opener(url_request.HTTPRedirectHandler(),
+        #                                   HttpErrorHandler())
+        #     # opener = url_request.build_opener(HTTPHandler(),
+        #     #                               HttpErrorHandler())
+        # opener.addheaders = [('Connection', 'Keep-Alive')]   
+        # response = opener.open(request)
+        # ['Location: http://www.google.co.in/?gws_rd=cr&ei=SdleUoCqNcm3rgfoyoCYAw\r\n', 'Cache-Control: private\r\n', 
+        # 'Content-Type: text/html; charset=UTF-8\r\n', 
+        # 'Set-Cookie: PREF=ID=8d08d921afe26288:FF=0:TM=1381947721:LM=1381947721:S=UAH6YDFH9McuaC9G; expires=Fri, 16-Oct-2015 18:22:01 GMT; path=/; domain=.google.com\r\n', 
+        # 'Set-Cookie: NID=67=rcyVoGtvfndsnf6PJQiQasrJr9ivwjJjEfTxjfXB5zHLEiXkZQ8VoPV8_o1QVHflWCvzmVw0lESg0m_FU-jjy-g3hY_v5Kw03C6X7wOaIVXqTKMwQUUWm93PKDsLfKk3; expires=Thu, 17-Apr-2014 18:22:01 GMT; path=/; domain=.google.com; HttpOnly\r\n', 
+        # 'P3P: CP="This is not a P3P policy! See http://www.google.com/support/accounts/bin/answer.py?hl=en&answer=151657 for more info."\r\n', 
+        # 'Date: Wed, 16 Oct 2013 18:22:01 GMT\r\n', 'Server: gws\r\n', 'Content-Length: 261\r\n', 'X-XSS-Protection: 1; mode=block\r\n', 
+        # 'X-Frame-Options: SAMEORIGIN\r\n', 'Alternate-Protocol: 80:quic\r\n', 'Connection: Keep-Alive\r\n']
+
         try:
-            if response.code > 399 and response.code < 500:
-                return {'status': response.code, 'value': response.read()}
-            body = response.read().decode('utf-8').replace('\x00', '').strip()
-            content_type = [value for name, value in response.info().items() if name.lower() == "content-type"]
+            if statuscode > 399 and statuscode < 500:
+                return {'status': statuscode, 'value': response.read()}
+            # body = response.read().decode('utf-8').replace('\x00', '').strip()
+            body = response.decode('utf-8').replace('\x00', '').strip()
+            content_type = header.getheader('Content-Type').split(';')
+            #content_type = [value for name, value in response.info().items() if name.lower() == "content-type"]
+            #contenty_type = headers.get
+            #if not any([x.startswith('image/png') for x in content_type]):
             if not any([x.startswith('image/png') for x in content_type]):
                 try:
                     data = utils.load_json(body.strip())
                 except ValueError:
-                    if response.code > 199 and response.code < 300:
+                    if statuscode > 199 and statuscode < 300:
                         status = ErrorCode.SUCCESS
                     else:
                         status = ErrorCode.UNKNOWN_ERROR
@@ -428,4 +487,5 @@ class RemoteConnection(object):
                 data = {'status': 0, 'value': body.strip()}
                 return data
         finally:
-            response.close()
+            # response.close()
+            print ("In finally: everyting was over")

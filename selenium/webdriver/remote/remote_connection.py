@@ -1,6 +1,5 @@
 # Copyright 2008-2009 WebDriver committers
 # Copyright 2008-2009 Google Inc.
-# Copyright 2013 BrowserStack
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +18,15 @@ import socket
 import string
 import base64
 import httplib
+# try:
+#     from urllib import request as url_request
+# except ImportError:
+
+import urllib2 as url_request
+from keepalive import HTTPHandler
+#keepalive_handler = HTTPHandler()
+# opener = url_request.build_opener(keepalive_handler)
+# url_request.install_opener(opener)
 
 try:
     from urllib2 import parse
@@ -383,28 +391,36 @@ class RemoteConnection(object):
         # print "Headers: ", header
         # res = webservice.getfile().read()
         # print 'Content: ', res
-
+        print ("URL :" + url)
         parsed_url = parse.urlparse(url)
+        auth_params, addr_port = parsed_url.netloc.split("@")
+        addr, port = addr_port.split(":")
         # Start creating headers
-        webservice = httplib.HTTP(parsed_url.hostname)
+        webservice = httplib.HTTP(str(addr), str(port))
         # write your headers
-        webservice.putrequest(method, url)
-        webservice.putheader("Host", parsed_url.hostname)
+        webservice.putrequest(method, parsed_url.path)
+        # webservice.putheader("Host", addr)
         webservice.putheader("User-Agent", "Python http auth")
-        webservice.putheader("Content-type", "text/html")
+        webservice.putheader("Content-type", "text/html;charset=\"UTF-8\"")
         webservice.putheader("Content-length", "%d" % len(data))
         webservice.putheader("Connection", "keep-alive")
         # for basic auth
         if parsed_url.username:
-            auth = base64.encodestring('%s:%s' % (parsed_url.username, parsed_url.password)).replace('\n','')
+            auth = base64.standard_b64encode('%s:%s' % (parsed_url.username, parsed_url.password)).replace('\n','')
+            print "Authentication parameter is : %s" % (auth)
             #standard_b64encode
             # Authorization header
             webservice.putheader("Authorization", "Basic %s" % auth)   
         webservice.endheaders()
         webservice.send(data)
+        print webservice
         statuscode, statusmessage, header = webservice.getreply()
         print "Response: ", statuscode, statusmessage
         print "Headers: ", header
+        # response = ""
+        # if statuscode == 204:
+            # response = "{}"
+        # else:
         response = webservice.getfile().read()
         print 'Content: ', response
         # password_manager = None
@@ -456,11 +472,15 @@ class RemoteConnection(object):
         # 'X-Frame-Options: SAMEORIGIN\r\n', 'Alternate-Protocol: 80:quic\r\n', 'Connection: Keep-Alive\r\n']
 
         try:
+            # if statuscode == 204:
+            #     return{'status': statuscode, 'value': response}
             if statuscode > 399 and statuscode < 500:
-                return {'status': statuscode, 'value': response.read()}
+                return {'status': statuscode, 'value': response}
             # body = response.read().decode('utf-8').replace('\x00', '').strip()
             body = response.decode('utf-8').replace('\x00', '').strip()
-            content_type = header.getheader('Content-Type').split(';')
+            content_type = []
+            if statuscode != 204:
+                content_type = header.getheader('Content-Type').split(';')
             #content_type = [value for name, value in response.info().items() if name.lower() == "content-type"]
             #contenty_type = headers.get
             #if not any([x.startswith('image/png') for x in content_type]):

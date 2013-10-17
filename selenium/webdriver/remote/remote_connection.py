@@ -18,6 +18,7 @@ import socket
 import string
 import base64
 import httplib
+import datetime
 # try:
 #     from urllib import request as url_request
 # except ImportError:
@@ -138,7 +139,6 @@ class RemoteConnection(object):
     Communicates with the server using the WebDriver wire protocol:
     http://code.google.com/p/selenium/wiki/JsonWireProtocol
     """
-    # akshay:ryan@127.0.0.1:4444
     def __init__(self, remote_server_addr):
         # Attempt to resolve the hostname and get an IP address.
         parsed_url = parse.urlparse(remote_server_addr)
@@ -161,7 +161,9 @@ class RemoteConnection(object):
 
         self._url = remote_server_addr
         self._commands = {
+            Command.STATUS: ('GET', '/status'),
             Command.NEW_SESSION: ('POST', '/session'),
+            Command.GET_ALL_SESSIONS: ('GET', '/sessions'),
             Command.QUIT: ('DELETE', '/session/$sessionId'),
             Command.GET_CURRENT_WINDOW_HANDLE:
                 ('GET', '/session/$sessionId/window_handle'),
@@ -358,6 +360,8 @@ class RemoteConnection(object):
         return self._request(url, method=command_info[0], data=data)
 
     def _request(self, url, data=None, method=None):
+        print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+        print "Starting request: %s", str(datetime.datetime.now())
         """
         Send an HTTP request to the remote server.
 
@@ -371,116 +375,45 @@ class RemoteConnection(object):
         """
         LOGGER.debug('%s %s %s' % (method, url, data))
 
-        # auth = base64.encodestring('%s:%s' % (username, password)).replace('\n','')
-        #standard_b64encode
-        # webservice = httplib.HTTP(host)
-        # # write your headers
-        # webservice.putrequest(method, url)
-        # webservice.putheader("Host", host)
-        # webservice.putheader("User-Agent", "Python http auth")
-        # webservice.putheader("Content-type", "text/html")
-        # webservice.putheader("Content-length", "%d" % len(data))
-        # webservice.putheader("Connection", "keep-alive")
-        # # Authorization header 
-        # webservice.putheader("Authorization", "Basic %s" % auth)
-        # webservice.endheaders()
-        # webservice.send(message)
-        # # get the response
-        # statuscode, statusmessage, header = webservice.getreply()
-        # print "Response: ", statuscode, statusmessage
-        # print "Headers: ", header
-        # res = webservice.getfile().read()
-        # print 'Content: ', res
         print ("URL :" + url)
         parsed_url = parse.urlparse(url)
         auth_params, addr_port = parsed_url.netloc.split("@")
         addr, port = addr_port.split(":")
-        # Start creating headers
-        webservice = httplib.HTTP(str(addr), str(port))
-        # write your headers
-        webservice.putrequest(method, parsed_url.path)
-        # webservice.putheader("Host", addr)
-        webservice.putheader("User-Agent", "Python http auth")
-        webservice.putheader("Content-type", "text/html;charset=\"UTF-8\"")
-        webservice.putheader("Content-length", "%d" % len(data))
-        webservice.putheader("Connection", "keep-alive")
+        headers = {}
+        headers["Connection"] = "Keep-Alive"
+        
+        headers[method] = parsed_url.path
+        headers["User-Agent"] = "Python http auth"
+        headers["Content-type"] = "text/html;charset=\"UTF-8\""
+        # headers["Content-length"] = "%d" % len(data)
+        headers["Connection"] = "keep-alive"
+        # headers["Connection"] = "close"
+
+        conn = httplib.HTTPConnection(str(addr),str(port))
         # for basic auth
         if parsed_url.username:
-            auth = base64.standard_b64encode('%s:%s' % (parsed_url.username, parsed_url.password)).replace('\n','')
-            print "Authentication parameter is : %s" % (auth)
             #standard_b64encode
+            auth = base64.standard_b64encode('%s:%s' % (parsed_url.username, parsed_url.password)).replace('\n','')
+            print "Authentication parameter is : %s" % (auth)            
             # Authorization header
-            webservice.putheader("Authorization", "Basic %s" % auth)   
-        webservice.endheaders()
-        webservice.send(data)
-        print webservice
-        statuscode, statusmessage, header = webservice.getreply()
-        print "Response: ", statuscode, statusmessage
-        print "Headers: ", header
-        # response = ""
-        # if statuscode == 204:
-            # response = "{}"
-        # else:
-        response = webservice.getfile().read()
-        print 'Content: ', response
-        # password_manager = None
-        # if parsed_url.username:
-        #     netloc = parsed_url.hostname
-        #     if parsed_url.port:
-        #         netloc += ":%s" % parsed_url.port
-        #     cleaned_url = parse.urlunparse((parsed_url.scheme,
-        #                                        netloc,
-        #                                        parsed_url.path,
-        #                                        parsed_url.params,
-        #                                        parsed_url.query,
-        #                                        parsed_url.fragment))
-        #     password_manager = url_request.HTTPPasswordMgrWithDefaultRealm()
-        #     password_manager.add_password(None,
-        #                                   "%s://%s" % (parsed_url.scheme, netloc),
-        #                                   parsed_url.username,
-        #                                   parsed_url.password)
-        #     request = Request(cleaned_url, data=data.encode('utf-8'), method=method)
-        # else:
-        #     request = Request(url, data=data.encode('utf-8'), method=method)
+            headers["Authorization"] = "Basic %s" % auth
 
-        # request.add_header('Accept', 'application/json')
-        # request.add_header('Content-Type', 'application/json;charset=UTF-8')
-        # request.add_header('Connection','Keep-Alive')
-        # request.add_header('keep-alive','Yes')
-        # request.add_header('Keep Alive','Yes')
+        conn.request(method, parsed_url.path, data, headers)
+        resp = conn.getresponse()
+        statuscode = resp.status
+        statusmessage = resp.msg
+        print "Response codes: ", statuscode, statusmessage
+        print "Headers: ", resp.getheader("Connection"), resp.getheader("Keep Alive")
+        print "Finished data response: %s", str(datetime.datetime.now())
 
-        # if password_manager:
-        #     opener = url_request.build_opener(url_request.HTTPRedirectHandler(),
-        #                                   HttpErrorHandler(),
-        #                                   url_request.HTTPBasicAuthHandler(password_manager))
-        #     # opener = url_request.build_opener(HTTPHandler(),
-        #     #                               HttpErrorHandler(),
-        #     #                               url_request.HTTPBasicAuthHandler(password_manager))
-        # else:
-        #     opener = url_request.build_opener(url_request.HTTPRedirectHandler(),
-        #                                   HttpErrorHandler())
-        #     # opener = url_request.build_opener(HTTPHandler(),
-        #     #                               HttpErrorHandler())
-        # opener.addheaders = [('Connection', 'Keep-Alive')]   
-        # response = opener.open(request)
-        # ['Location: http://www.google.co.in/?gws_rd=cr&ei=SdleUoCqNcm3rgfoyoCYAw\r\n', 'Cache-Control: private\r\n', 
-        # 'Content-Type: text/html; charset=UTF-8\r\n', 
-        # 'Set-Cookie: PREF=ID=8d08d921afe26288:FF=0:TM=1381947721:LM=1381947721:S=UAH6YDFH9McuaC9G; expires=Fri, 16-Oct-2015 18:22:01 GMT; path=/; domain=.google.com\r\n', 
-        # 'Set-Cookie: NID=67=rcyVoGtvfndsnf6PJQiQasrJr9ivwjJjEfTxjfXB5zHLEiXkZQ8VoPV8_o1QVHflWCvzmVw0lESg0m_FU-jjy-g3hY_v5Kw03C6X7wOaIVXqTKMwQUUWm93PKDsLfKk3; expires=Thu, 17-Apr-2014 18:22:01 GMT; path=/; domain=.google.com; HttpOnly\r\n', 
-        # 'P3P: CP="This is not a P3P policy! See http://www.google.com/support/accounts/bin/answer.py?hl=en&answer=151657 for more info."\r\n', 
-        # 'Date: Wed, 16 Oct 2013 18:22:01 GMT\r\n', 'Server: gws\r\n', 'Content-Length: 261\r\n', 'X-XSS-Protection: 1; mode=block\r\n', 
-        # 'X-Frame-Options: SAMEORIGIN\r\n', 'Alternate-Protocol: 80:quic\r\n', 'Connection: Keep-Alive\r\n']
-
+        data = resp.read()
         try:
-            # if statuscode == 204:
-            #     return{'status': statuscode, 'value': response}
             if statuscode > 399 and statuscode < 500:
-                return {'status': statuscode, 'value': response}
-            # body = response.read().decode('utf-8').replace('\x00', '').strip()
-            body = response.decode('utf-8').replace('\x00', '').strip()
+                return {'status': statuscode, 'value': data}
+            body = data.decode('utf-8').replace('\x00', '').strip()
             content_type = []
             if statuscode != 204:
-                content_type = header.getheader('Content-Type').split(';')
+                content_type = resp.getheader('Content-Type').split(';')
             #content_type = [value for name, value in response.info().items() if name.lower() == "content-type"]
             #contenty_type = headers.get
             #if not any([x.startswith('image/png') for x in content_type]):
@@ -508,4 +441,7 @@ class RemoteConnection(object):
                 return data
         finally:
             # response.close()
+            conn.close()
             print ("In finally: everyting was over")
+            print "Finished request response cycle: %s", str(datetime.datetime.now())
+            print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"

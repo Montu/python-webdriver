@@ -19,6 +19,7 @@ import string
 import base64
 import httplib
 import datetime
+import urllib3
 # try:
 #     from urllib import request as url_request
 # except ImportError:
@@ -139,12 +140,15 @@ class RemoteConnection(object):
     Communicates with the server using the WebDriver wire protocol:
     http://code.google.com/p/selenium/wiki/JsonWireProtocol
     """
+    # akshay:ryan@127.0.0.1:4444
     def __init__(self, remote_server_addr):
         # Attempt to resolve the hostname and get an IP address.
         parsed_url = parse.urlparse(remote_server_addr)
+        addr = ""
         if parsed_url.hostname:
             try:
                 netloc = socket.gethostbyname(parsed_url.hostname)
+                addr = netloc
                 if parsed_url.port:
                     netloc += ':%d' % parsed_url.port
                 if parsed_url.username:
@@ -160,10 +164,9 @@ class RemoteConnection(object):
                             parsed_url.hostname)
 
         self._url = remote_server_addr
+        self._conn = httplib.HTTPConnection(str(addr),str(parsed_url.port))
         self._commands = {
-            Command.STATUS: ('GET', '/status'),
             Command.NEW_SESSION: ('POST', '/session'),
-            Command.GET_ALL_SESSIONS: ('GET', '/sessions'),
             Command.QUIT: ('DELETE', '/session/$sessionId'),
             Command.GET_CURRENT_WINDOW_HANDLE:
                 ('GET', '/session/$sessionId/window_handle'),
@@ -340,6 +343,8 @@ class RemoteConnection(object):
                 ('GET','/session/$sessionId/log/types'),
             }
 
+
+
     def execute(self, command, params):
         """
         Send a command to the remote server.
@@ -387,9 +392,9 @@ class RemoteConnection(object):
         headers["Content-type"] = "text/html;charset=\"UTF-8\""
         # headers["Content-length"] = "%d" % len(data)
         headers["Connection"] = "keep-alive"
+        headers["Keep-Alive"] = "timeout=10"
         # headers["Connection"] = "close"
 
-        conn = httplib.HTTPConnection(str(addr),str(port))
         # for basic auth
         if parsed_url.username:
             #standard_b64encode
@@ -398,8 +403,8 @@ class RemoteConnection(object):
             # Authorization header
             headers["Authorization"] = "Basic %s" % auth
 
-        conn.request(method, parsed_url.path, data, headers)
-        resp = conn.getresponse()
+        self._conn.request(method, parsed_url.path, data, headers)
+        resp = self._conn.getresponse()
         statuscode = resp.status
         statusmessage = resp.msg
         print "Response codes: ", statuscode, statusmessage
@@ -441,7 +446,7 @@ class RemoteConnection(object):
                 return data
         finally:
             # response.close()
-            conn.close()
+            #conn.close()
             print ("In finally: everyting was over")
             print "Finished request response cycle: %s", str(datetime.datetime.now())
             print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
